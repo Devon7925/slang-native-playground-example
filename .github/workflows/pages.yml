@@ -30,12 +30,15 @@ jobs:
           cargo install wasm-bindgen-cli
       - name: Rust Cache # cache the rust build artefacts
         uses: Swatinem/rust-cache@v2
-      - name: Download and install Trunk binary
-        run: wget -qO- https://github.com/thedodd/trunk/releases/latest/download/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-
       - name: Build
         run: cargo build --target wasm32-unknown-unknown
       - name: Bindgen
         run: wasm-bindgen --out-dir target/generated/ --web target/wasm32-unknown-unknown/debug/slang-native-playground-example.wasm 
+      - name: Move files
+        run: |
+          mkdir _site
+          mv index.html _site/index.html
+          mv target/generated/* _site/target/generated
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
