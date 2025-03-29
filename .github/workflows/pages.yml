@@ -12,7 +12,9 @@ on:
 #       - published
 
 permissions:
-  contents: write # for committing to gh-pages branch.
+  contents: read
+  pages: write
+  id-token: write
 
 jobs:
   build-github-pages:
