@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zxx">
+    <head>
+        <title>Slang Playground App</title>
+        <meta name="description" content="A graphics app written in slang">
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <script>
+            Error.stackTraceLimit = 50;
+        </script>
+        <style>
+            #canvas {
+                width: 100%;
+                height: 100%;
+            }
+            body {
+                margin: 0;
+                width: 100vw;
+                height: 100vh;
+                overflow: hidden;
+            }
+        </style>
+    </head>
+    <body>
+        <script type="module">
+            import init from "./target/generated/slang-native-playground-example.js";
+            init();
+        </script>
+        <canvas id="canvas"></canvas>
+    </body>
+</html>
