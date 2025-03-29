@@ -37,6 +37,8 @@ jobs:
       - name: Move files
         run: |
           mkdir _site
+          mkdir _site/target
+          mkdir _site/target/generated
           mv index.html _site/index.html
           mv target/generated/* _site/target/generated
       - name: Setup Pages
