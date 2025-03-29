@@ -15,6 +15,6 @@ cargo build --target wasm32-unknown-unknown
 wasm-bindgen --out-dir target/generated/ --web target/wasm32-unknown-unknown/debug/slang-native-playground-example.wasm 
 ```
 
-The web build should then be accessible from `index.html`.
+The web build should then be accessible from `index.html`. To see the current web deploy see the [Github Pages Deploy](https://devon7925.github.io/slang-native-playground-example/).
 
 
