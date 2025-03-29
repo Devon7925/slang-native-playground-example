@@ -1,0 +1,14 @@
+[package]
+name = "slang-native-playground-example"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+slang-compiler-type-definitions = { git = "https://github.com/Devon7925/slang-native-playground" }
+slang-shader-macros = { git = "https://github.com/Devon7925/slang-native-playground" }
+slang-native-playground = { git = "https://github.com/Devon7925/slang-native-playground" }
+wgpu = { version = "24.0.0", features = ["serde"] }
+ron = "0.9.0"
+
+[patch.crates-io]
+wgpu = { git = "https://github.com/gfx-rs/wgpu.git", rev = "d6ca412" }
