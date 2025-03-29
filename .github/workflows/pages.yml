@@ -1,0 +1,43 @@
+name: Github Pages
+
+# By default, runs if you push to main. keeps your deployed app in sync with main branch.
+on:
+  push:
+    branches:
+      - main
+# to only run when you do a new github release, comment out above part and uncomment the below trigger.
+# on:
+#   release:
+#     types:
+#       - published
+
+permissions:
+  contents: write # for committing to gh-pages branch.
+
+jobs:
+  build-github-pages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4 # repo checkout
+      - name: Setup toolchain for wasm
+        run: |
+          rustup update stable
+          rustup default stable
+          rustup set profile minimal
+          rustup target add wasm32-unknown-unknown
+          cargo install wasm-bindgen-cli
+      - name: Rust Cache # cache the rust build artefacts
+        uses: Swatinem/rust-cache@v2
+      - name: Download and install Trunk binary
+        run: wget -qO- https://github.com/thedodd/trunk/releases/latest/download/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-
+      - name: Build
+        run: cargo build --target wasm32-unknown-unknown
+      - name: Bindgen
+        run: wasm-bindgen --out-dir target/generated/ --web target/wasm32-unknown-unknown/debug/slang-native-playground-example.wasm 
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
