@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-slang-compiler-type-definitions = { git = "https://github.com/Devon7925/slang-native-playground" }
+slang-playground-compiler = { git = "https://github.com/Devon7925/slang-native-playground" }
 slang-shader-macros = { git = "https://github.com/Devon7925/slang-native-playground" }
 slang-native-playground = { git = "https://github.com/Devon7925/slang-native-playground" }
 wgpu = { version = "24.0.0", features = ["serde"] }
