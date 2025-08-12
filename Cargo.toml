@@ -4,11 +4,35 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+env_logger = "0.11.6"
+pollster = "0.4.0"
+wgpu = { version = "25.0.0", features = ["serde"] }
+winit = "0.30.12"
+bytemuck = "1.23.2"
+regex = "1.11.1"
+serde = { version = "1.0.217", features = ["derive"] }
+ron = "0.10.1"
+flume = "0.11.1"
+web-time = "1.1.0"
+futures = "0.3.31"
+egui-winit = { version = "0.32.0", default-features = false, features = [
+    "links",
+    "wayland",
+    "x11",
+] }
 slang-playground-compiler = { git = "https://github.com/Devon7925/slang-native-playground" }
 slang-shader-macros = { git = "https://github.com/Devon7925/slang-native-playground" }
-slang-native-playground = { git = "https://github.com/Devon7925/slang-native-playground" }
-wgpu = { version = "24.0.0", features = ["serde"] }
-ron = "0.10.1"
+slang-renderer = { git = "https://github.com/Devon7925/slang-native-playground" }
 
-[patch.crates-io]
-wgpu = { git = "https://github.com/gfx-rs/wgpu.git", rev = "d6ca412" }
+[target.wasm32-unknown-unknown.dependencies]
+getrandom = { version = "0.3.3", features = ["wasm_js"] }
+console_error_panic_hook = "0.1.7"
+wasm-bindgen = "0.2.100"
+web-sys = "0.3.77"
+js-sys = "0.3.77"
+wasm-bindgen-futures = "0.4.50"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+egui-wgpu = "0.32.0"
+egui = "0.32.0"
+slang-debug-app = { git = "https://github.com/Devon7925/slang-native-playground" }
