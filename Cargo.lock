@@ -3195,7 +3195,7 @@ dependencies = [
 [[package]]
 name = "slang-reflector"
 version = "0.1.0"
-source = "git+https://github.com/Devon7925/slang-reflector.git#877ed903f1d06be275d077bc55e34a5a50107e9b"
+source = "git+https://github.com/Devon7925/slang-reflector.git#6db8e1ed8f9c0e90c00e8135d24672b6f8dab02b"
 dependencies = [
  "slang",
 ]
