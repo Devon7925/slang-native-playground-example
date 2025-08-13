@@ -1,8 +1,10 @@
 use slang_playground_compiler::CompilationResult;
 use slang_renderer::Renderer;
+use wgpu::Features;
 use std::sync::Arc;
 use winit::{
     application::ApplicationHandler,
+    dpi::PhysicalSize,
     event::WindowEvent,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     window::{Window, WindowId},
@@ -18,44 +20,147 @@ extern crate console_error_panic_hook;
 #[cfg(not(target_arch = "wasm32"))]
 use slang_debug_app::DebugAppState;
 
+struct RenderData {
+    pub state: Renderer,
+    pub window: Arc<Window>,
+    pub surface: wgpu::Surface<'static>,
+    pub device: Arc<wgpu::Device>,
+    pub queue: Arc<wgpu::Queue>,
+}
+
+impl RenderData {
+    async fn new(window: Arc<Window>, compilation: CompilationResult) -> Self {
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
+        let surface = instance.create_surface(window.clone()).unwrap();
+
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions::default())
+            .await
+            .unwrap();
+
+        let info = adapter.get_info();
+
+        let info_logging = format!("Running on backend: {}\n", info.backend);
+        #[cfg(not(target_arch = "wasm32"))]
+        print!("{}", info_logging);
+        #[cfg(target_arch = "wasm32")]
+        web_sys::console::log_1(&info_logging.into());
+
+        let (device, queue) = adapter
+            .request_device(&wgpu::DeviceDescriptor {
+                required_features: Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+
+        let device = Arc::new(device);
+        let queue = Arc::new(queue);
+
+        let state = Renderer::new(
+                compilation,
+                window.inner_size(),
+                device.clone(),
+                queue.clone(),
+            ).await;
+
+        configure_surface(&surface, &device, window.inner_size(), wgpu::TextureFormat::Rgba8Unorm);
+
+        RenderData {
+            state: state,
+            window: window,
+            surface: surface,
+            device: device,
+            queue: queue,
+        }
+    }
+}
+
+// Surface configuration is now handled externally if needed
+fn configure_surface(surface: &wgpu::Surface, device: &wgpu::Device, size: PhysicalSize<u32>, surface_format: wgpu::TextureFormat) {
+    let surface_config = wgpu::SurfaceConfiguration {
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        format: surface_format,
+        view_formats: vec![surface_format],
+        alpha_mode: wgpu::CompositeAlphaMode::Auto,
+        width: size.width,
+        height: size.height,
+        desired_maximum_frame_latency: 2,
+        present_mode: if cfg!(target_arch = "wasm32") {
+            wgpu::PresentMode::Fifo
+        } else {
+            wgpu::PresentMode::Immediate
+        },
+    };
+    surface
+        .configure(device, &surface_config);
+}
+
 struct App {
-    state: Option<Renderer>,
+    render_data: Option<RenderData>,
     #[cfg(target_arch = "wasm32")]
-    state_receiver: Option<futures::channel::oneshot::Receiver<Renderer>>,
+    state_receiver: Option<futures::channel::oneshot::Receiver<RenderData>>,
     #[cfg(not(target_arch = "wasm32"))]
     debug_app: Option<DebugAppState>,
     compilation: Option<CompilationResult>,
+    surface_format: wgpu::TextureFormat,
 }
 impl App {
     fn new(compilation: CompilationResult) -> Self {
         Self {
-            state: None,
+            render_data: None,
             #[cfg(target_arch = "wasm32")]
             state_receiver: None,
             #[cfg(not(target_arch = "wasm32"))]
             debug_app: None,
             compilation: Some(compilation),
+            surface_format: wgpu::TextureFormat::Rgba8Unorm,
         }
+    }
+
+    fn render_frame(&mut self) {
+        let Some(render_data) = self.render_data.as_mut() else {
+            return;
+        };
+        render_data.state.begin_frame();
+        let surface_texture = render_data.surface
+            .get_current_texture()
+            .expect("failed to acquire next swapchain texture");
+        let texture_view = surface_texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor {
+                format: Some(self.surface_format),
+                ..Default::default()
+            });
+        let mut encoder = render_data
+            .device
+            .create_command_encoder(&Default::default());
+        render_data.state.run_compute_passes(&mut encoder);
+        render_data.state.run_draw_passes(&mut encoder, &texture_view);
+        render_data.queue.submit([encoder.finish()]);
+        render_data.state.handle_print_output();
+        surface_texture.present();
     }
 
     #[cfg(target_arch = "wasm32")]
     fn ensure_state_is_loaded(&mut self) -> bool {
-        if self.state.is_some() {
+        if self.render_data.is_some() {
             return true;
         }
 
         if let Some(receiver) = self.state_receiver.as_mut() {
             if let Ok(Some(state)) = receiver.try_recv() {
-                self.state = Some(state);
+                self.render_data = Some(state);
                 self.state_receiver = None;
             }
         }
-        self.state.is_some()
+        self.render_data.is_some()
     }
 }
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        let compilation = self.compilation.take().expect("Compilation result is missing");
         #[allow(unused_mut)]
         let mut builder = Window::default_attributes().with_title("Slang Native Playground");
 
@@ -73,25 +178,20 @@ impl ApplicationHandler for App {
                 .expect("error HtmlCanvasElement");
             builder = builder.with_decorations(false).with_canvas(Some(canvas));
         }
-        // Create window object
-        let window = Arc::new(event_loop.create_window(builder).unwrap());
 
+        let window = Arc::new(event_loop.create_window(builder).unwrap());
+        let future = RenderData::new(window, compilation);
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let state = pollster::block_on(Renderer::new(
-                window.clone(),
-                self.compilation.take().unwrap(),
-            ));
-            self.state = Some(state);
+            self.render_data = Some(pollster::block_on(future));
         }
 
         #[cfg(target_arch = "wasm32")]
         {
             let (sender, receiver) = futures::channel::oneshot::channel();
             self.state_receiver = Some(receiver);
-            let compilation = self.compilation.take().unwrap();
             wasm_bindgen_futures::spawn_local(async move {
-                let state = Renderer::new(window.clone(), compilation).await;
+                let state = future.await;
                 if sender.send(state).is_err() {
                     panic!("Failed to create and send renderer!");
                 }
@@ -103,10 +203,10 @@ impl ApplicationHandler for App {
             let debug_state = pollster::block_on(DebugAppState::new(
                 event_loop,
                 (1360, 768),
-                self.state.as_ref().unwrap().uniform_components.clone(),
+                self.render_data.as_ref().unwrap().state.uniform_components.clone(),
             ));
             self.debug_app = Some(debug_state);
-            self.state.as_ref().unwrap().window.focus_window();
+            self.render_data.as_ref().unwrap().window.focus_window();
         }
     }
 
@@ -136,8 +236,25 @@ impl ApplicationHandler for App {
             return;
         }
 
-        let state = self.state.as_mut().unwrap();
-        state.process_event(&event);
+        #[cfg(target_arch = "wasm32")]
+        match event {
+            WindowEvent::RedrawRequested => {
+                self.render_frame();
+            }
+            _ => (),
+        }
+
+        let Some(render_data) = self.render_data.as_mut() else {
+            return;
+        };
+        match event {
+            WindowEvent::Resized(size) => {
+                configure_surface(&render_data.surface, &render_data.device, size, self.surface_format);
+            }
+            _ => (),
+        }
+
+        render_data.state.process_event(&event);
     }
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
@@ -146,11 +263,10 @@ impl ApplicationHandler for App {
             return; // Still loading, skip event
         }
 
-        let state = self.state.as_mut().unwrap();
         #[cfg(not(target_arch = "wasm32"))]
-        state.render();
+        self.render_frame();
         #[cfg(target_arch = "wasm32")]
-        state.window.request_redraw();
+        self.render_data.as_ref().unwrap().window.request_redraw();
 
         #[cfg(not(target_arch = "wasm32"))]
         // Only handle debug window if in debug mode
