@@ -138,6 +138,8 @@ impl App {
         render_data.state.run_compute_passes(&mut encoder);
         render_data.state.run_draw_passes(&mut encoder, &texture_view);
         render_data.queue.submit([encoder.finish()]);
+        // Schedule a readback of the shader printf buffer, then process any available print output.
+        render_data.state.schedule_print_readback();
         render_data.state.handle_print_output();
         surface_texture.present();
     }
